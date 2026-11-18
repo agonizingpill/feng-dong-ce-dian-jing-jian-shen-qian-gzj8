@@ -124,3 +124,18 @@ MIT License。
 seed只补基础测点/历史扫角/演示证书，不自动审签或制造合格采样、装夹、回执；按剧本真实操作产生追加数据。重复seed保留人工装夹修订、实际序列、冻结状态、回执和原快照。v1/v2历史证据保留，追加验证在 `../../test-artifacts/gb-1028/v3/`。没有硬件采集接口/实时流/升力反演、自动停机、撤销冻结或真实文档外发；不将人工输入示例解释为真实风洞测试数据。
 
 数据库使用READ COMMITTED，领域状态与父试验行锁继续串行化写入。采集冻结先读取批次再等试验锁，因此冻结汇总必须看到前一持锁事务最新提交的实样；不能沿用MySQL默认REPEATABLE READ在等锁前建立的旧快照。强制持锁2秒的实际并发测试验证：10Pa被重写为99Pa后冻结读到99Pa；完整采集被改成单通道后冻结拒绝，见v3/current-read-race-results.json。
+
+## 交付更正（v4）
+
+交付核准后发现接收单位填错时，原交付单不可改写，改用更正单接替。`DeliveryCorrection` 关联试验与原交付单，记录新接收方、≥8字缘由、提交人与核准人；快照沿用原交付单冻结证据深拷贝，不从现值重建。工程师仅能对已核准（含已回执）的当前有效件发起更正，且新接收方须与当前有效件不同；待核准或已过时时原有效件不变。同一试验可并存多份待核准更正，每份记录接替基准（`supersedes_id`，空表示接替原交付单）；主管在试验行锁下核准，仅基准仍为当前有效件的更正可发布，发布即把其余待核准件置为过时（stale），过时件拒绝发布、不能回执。
+
+回执按版本各自登记、永久保留：核准与回执并发时回执归属其URL指定版本；已被接替的版本拒收新回执；同文回执重试幂等返回、不重复登记（原件与更正件一致）。原 `/tunnel-deliveries/{id}/acknowledge` 相应改为先取试验行锁再判定，替代后旧件拒收新回执。新增表仅 create_all，`tunnel_deliveries` 不加列不回填，旧库升级后原交付单仍为当前有效件。交付页可发起更正、查看版本替代链与各版回执，列表显示当前有效接收方与“更正已生效”徽标。
+
+|追加接口|权限与动作|
+|---|---|
+|GET /delivery-corrections|三角色读取替代链|
+|POST /delivery-corrections|admin/engineer 对已核准有效件发起更正|
+|POST /delivery-corrections/{id}/approve|仅admin核准接替，落选更正同时置为过时|
+|POST /delivery-corrections/{id}/acknowledge|admin/engineer 登记该版回执，同文重试幂等|
+
+`correction_models.py` 为关系表，`correction_service.py` 为领域流转（有效件判定、基准校验、自动过时），路由与请求约束并入 testcycle_routes/testcycle_schemas；更正状态 pending/approved/acknowledged/stale 在前后端constants声明。seed不制造更正数据。当前范围：更正仅替换接收方并沿用原冻结依据，不支持修改其他交付内容、不支持主管驳回后修订再审（过时件须重新发起）、不外发真实文档。

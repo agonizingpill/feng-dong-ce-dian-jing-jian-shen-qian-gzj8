@@ -6,7 +6,8 @@ from .acquisition_models import AcquisitionBatch
 from .acquisition_service import view as batch_view
 from .delivery_models import TunnelDelivery
 from .calibration_service import locked
-from .services import pack,audit
+from .services import get,pack,audit
+from .correction_service import effective
 
 def create(s,d,u):
     r=locked(s,TunnelRun,d.run_id)
@@ -21,7 +22,12 @@ def approve(s,id,u):
     if x.state!='submitted':raise HTTPException(409,'仅待复核交付可核准，不能重复发布')
     x.state='approved';x.approved_by=u.email;audit(s,u,'主管核准交付 '+str(id));return pack(x)
 def acknowledge(s,id,d,u):
-    x=locked(s,TunnelDelivery,id)
+    pre=get(s,TunnelDelivery,id);locked(s,TunnelRun,pre.run_id)
+    x=locked(s,TunnelDelivery,id);text=d.receipt.strip()
+    if x.state=='acknowledged':
+        if x.receipt==text:return pack(x)
+        raise HTTPException(409,'交付已登记不同回执，不能重复签收')
     if x.state!='approved':raise HTTPException(409,'交付须主管核准，已回执不能重复')
-    if len(d.receipt.strip())<8:raise HTTPException(409,'回执说明至少8字')
-    x.receipt=d.receipt.strip();x.state='acknowledged';audit(s,u,'登记试验交付回执 '+str(id));return pack(x)
+    if effective(s,x)[0]!='delivery':raise HTTPException(409,'交付单已被更正接替，旧件拒收新回执')
+    if len(text)<8:raise HTTPException(409,'回执说明至少8字')
+    x.receipt=text;x.state='acknowledged';audit(s,u,'登记试验交付回执 '+str(id));return pack(x)

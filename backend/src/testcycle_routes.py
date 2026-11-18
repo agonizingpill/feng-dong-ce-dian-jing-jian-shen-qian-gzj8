@@ -5,9 +5,10 @@ from .auth import current,writers,admin
 from .mount_models import ModelMount,RunMount
 from .acquisition_models import AcquisitionBatch
 from .delivery_models import TunnelDelivery
-from .testcycle_schemas import MountInput,MountLinkInput,BatchInput,ReadingsInput,DeliveryInput,ReceiptInput
+from .correction_models import DeliveryCorrection
+from .testcycle_schemas import MountInput,MountLinkInput,BatchInput,ReadingsInput,DeliveryInput,ReceiptInput,CorrectionInput
 from .services import pack
-from . import mount_service as mounts,acquisition_service as acq,delivery_service as deliveries
+from . import mount_service as mounts,acquisition_service as acq,delivery_service as deliveries,correction_service as corrections
 router=APIRouter()
 @router.get('/model-mounts')
 def list_mounts(s=Depends(db_session),u=Depends(current)):return [pack(x) for x in s.scalars(select(ModelMount).order_by(ModelMount.id.desc()))]
@@ -51,3 +52,14 @@ def approve(id:int,s=Depends(db_session),u=Depends(admin)):
 @router.post('/tunnel-deliveries/{id}/acknowledge')
 def acknowledge(id:int,d:ReceiptInput,s=Depends(db_session),u=Depends(writers)):
     x=deliveries.acknowledge(s,id,d,u);s.commit();return x
+@router.get('/delivery-corrections')
+def list_corrections(s=Depends(db_session),u=Depends(current)):return [pack(x) for x in s.scalars(select(DeliveryCorrection).order_by(DeliveryCorrection.id))]
+@router.post('/delivery-corrections')
+def create_correction(d:CorrectionInput,s=Depends(db_session),u=Depends(writers)):
+    x=corrections.create(s,d,u);s.commit();return x
+@router.post('/delivery-corrections/{id}/approve')
+def approve_correction(id:int,s=Depends(db_session),u=Depends(admin)):
+    x=corrections.approve(s,id,u);s.commit();return x
+@router.post('/delivery-corrections/{id}/acknowledge')
+def acknowledge_correction(id:int,d:ReceiptInput,s=Depends(db_session),u=Depends(writers)):
+    x=corrections.acknowledge(s,id,d,u);s.commit();return x

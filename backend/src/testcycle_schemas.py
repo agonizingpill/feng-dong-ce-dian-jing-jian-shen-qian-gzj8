@@ -26,5 +26,9 @@ class ReadingsInput(BaseModel):
 class DeliveryInput(BaseModel):
     run_id:int
     recipient:str=Field(min_length=2,max_length=100,pattern=r'\S')
+class CorrectionInput(BaseModel):
+    run_id:int
+    recipient:str=Field(min_length=2,max_length=100,pattern=r'\S')
+    reason:str=Field(min_length=8,max_length=2000,pattern=r'\S')
 class ReceiptInput(BaseModel):
     receipt:str=Field(min_length=8,max_length=2000,pattern=r'\S')
